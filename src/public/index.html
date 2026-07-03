@@ -503,6 +503,20 @@
         <span class="hint">Click the token box to copy</span>
       </div>
 
+      <!-- API Tokens — admin only -->
+      <div class="panel-section" id="about-tokens-section" style="display:none">
+        <h4>API Tokens</h4>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+          Create named API tokens for programmatic access to all <code style="font-family:monospace;background:var(--card2);padding:1px 5px;border-radius:3px">/api/v1/*</code> endpoints.
+          Tokens are shown <b>only once</b> at creation. Use as
+          <code style="font-family:monospace;background:var(--card2);padding:1px 5px;border-radius:3px">Authorization: Bearer &lt;token&gt;</code>.
+        </p>
+        <div id="about-tokens-list"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary btn-sm" onclick="SettingsPanel.showCreateTokenDialog()">+ Create Token</button>
+        </div>
+      </div>
+
       <div class="panel-section">
         <h4>About</h4>
         <p style="font-size:13px;color:var(--text2);margin-bottom:8px">

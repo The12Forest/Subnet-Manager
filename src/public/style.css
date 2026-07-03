@@ -948,6 +948,21 @@ textarea { resize: vertical; min-height: 80px; }
   margin-bottom: 8px;
 }
 
+/* ── API Token list ─────────────────────────────────────────────────────────── */
+.token-row {
+  transition: background .15s;
+}
+.token-row:hover {
+  background: var(--card2);
+}
+.token-row .btn-sm {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.action-badge.roll   { background: rgba(245,158,11,.15); color: #f59e0b; }
+.action-badge.revoke { background: rgba(239,68,68,.15);  color: #ef4444; }
+
 /* ── Empty states ──────────────────────────────────────────────────────────── */
 .empty-state {
   text-align: center;

@@ -233,6 +233,13 @@ const SettingsPanel = {
         bearerSection.style.display = '';
         tokenEl.textContent = about.mcp_token;
       }
+
+      // Show API tokens section for admins
+      const tokensSection = document.getElementById('about-tokens-section');
+      if (tokensSection && about.api_tokens) {
+        tokensSection.style.display = '';
+        SettingsPanel.renderTokens(about.api_tokens);
+      }
     } catch { /* ignore */ }
   },
 
@@ -348,6 +355,167 @@ const SettingsPanel = {
       SettingsPanel.loadBackups();
     } else {
       App.toast('Failed to delete backup', 'error');
+    }
+  },
+
+  // ── API Token Management ────────────────────────────────────────────────────
+
+  renderTokens(tokens) {
+    const container = document.getElementById('about-tokens-list');
+    if (!container) return;
+    if (!tokens || tokens.length === 0) {
+      container.innerHTML = '<p style="color:var(--muted);font-size:13px">No API tokens created yet</p>';
+      return;
+    }
+    container.innerHTML = tokens.map(t => {
+      const dotColor = t.revoked ? 'var(--offline)' : 'var(--online)';
+      const lastUsed = t.last_used_at
+        ? new Date(t.last_used_at).toLocaleString()
+        : 'Never';
+      const actions  = t.revoked
+        ? `<button class="btn btn-danger btn-sm" onclick="SettingsPanel.deleteToken(${t.id}, '${App.esc(t.name)}')">Delete</button>`
+        : `<button class="btn btn-secondary btn-sm" onclick="SettingsPanel.rollToken(${t.id})">Roll</button>
+           <button class="btn btn-danger btn-sm" onclick="SettingsPanel.revokeToken(${t.id}, '${App.esc(t.name)}')">Revoke</button>`;
+      return `
+        <div class="token-row" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+            <span style="font-weight:600;font-size:13px;color:var(--text)">${App.esc(t.name)}</span>
+            <code style="font-size:10px;font-family:monospace;color:var(--muted)">${App.esc(t.prefix)}...</code>
+            <span class="action-badge ${t.revoked ? 'delete' : ''}" style="font-size:9px">${t.role}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+            <span style="font-size:11px;color:var(--muted)">${lastUsed}</span>
+            <div style="display:flex;gap:4px">${actions}</div>
+          </div>
+        </div>`;
+    }).join('');
+  },
+
+  showCreateTokenDialog() {
+    App.openModal(`
+      <div class="modal-header">
+        <h3>Create API Token</h3>
+        <button class="modal-close" onclick="App.closeModal()">×</button>
+      </div>
+      <div class="form-group">
+        <label>Token Name *</label>
+        <input type="text" id="m-token-name" placeholder="e.g. CI/CD Pipeline" maxlength="64">
+        <span class="hint">Choose a descriptive name to identify this token</span>
+      </div>
+      <div class="error-msg hidden" id="m-token-err"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="SettingsPanel.createToken()">Create Token</button>
+      </div>
+    `);
+  },
+
+  async createToken() {
+    const name  = document.getElementById('m-token-name').value.trim();
+    const errEl = document.getElementById('m-token-err');
+    if (!name) {
+      errEl.textContent = 'Token name is required';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    try {
+      const res  = await fetch('/api/v1/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Failed to create token';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      // Show the raw token in the modal — only time it is visible
+      App.openModal(`
+        <div class="modal-header">
+          <h3>Token Created — Copy Now</h3>
+          <button class="modal-close" onclick="App.closeModal();SettingsPanel.loadAbout()">×</button>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+          This token <b>will not be shown again</b>. Copy it now and store it securely.
+        </p>
+        <div class="token-box" style="user-select:all;cursor:pointer;word-break:break-all"
+             onclick="navigator.clipboard.writeText(this.textContent.trim()).then(()=>App.toast('Copied','success'))"
+             title="Click to copy">${data.token}</div>
+        <span class="hint">Token <b>${App.esc(data.name)}</b> (${data.role}) — click to copy</span>
+        <div class="modal-footer">
+          <button class="btn btn-primary" onclick="App.closeModal();SettingsPanel.loadAbout()">Done</button>
+        </div>
+      `);
+    } catch {
+      App.toast('Failed to create token', 'error');
+    }
+  },
+
+  async rollToken(id) {
+    const ok = await App.confirm(
+      'Roll this token? The old token will be <b>immediately revoked</b> and a new one generated.',
+      { confirmLabel: 'Roll Token' }
+    );
+    if (!ok) return;
+    try {
+      const res  = await fetch(`/api/v1/tokens/${id}/roll`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        App.toast(data.error || 'Roll failed', 'error');
+        return;
+      }
+      App.openModal(`
+        <div class="modal-header">
+          <h3>Token Rolled — Copy New Token</h3>
+          <button class="modal-close" onclick="App.closeModal();SettingsPanel.loadAbout()">×</button>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+          The previous token has been revoked. This is the new token for <b>${App.esc(data.name)}</b>.
+        </p>
+        <div class="token-box" style="user-select:all;cursor:pointer;word-break:break-all"
+             onclick="navigator.clipboard.writeText(this.textContent.trim()).then(()=>App.toast('Copied','success'))"
+             title="Click to copy">${data.token}</div>
+        <span class="hint">Click the token to copy — it will not be shown again</span>
+        <div class="modal-footer">
+          <button class="btn btn-primary" onclick="App.closeModal();SettingsPanel.loadAbout()">Done</button>
+        </div>
+      `);
+    } catch {
+      App.toast('Failed to roll token', 'error');
+    }
+  },
+
+  async revokeToken(id, name) {
+    const ok = await App.confirm(
+      `Revoke token <b>${App.esc(name)}</b>? It will stop working immediately.`,
+      { confirmLabel: 'Revoke', danger: true }
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/v1/tokens/${id}/revoke`, { method: 'POST' });
+    if (res.ok) {
+      App.toast('Token revoked', 'success');
+      SettingsPanel.loadAbout();
+    } else {
+      const d = await res.json();
+      App.toast(d.error || 'Revoke failed', 'error');
+    }
+  },
+
+  async deleteToken(id, name) {
+    const ok = await App.confirm(
+      `Permanently delete token <b>${App.esc(name)}</b>? This cannot be undone.`,
+      { confirmLabel: 'Delete', danger: true }
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/v1/tokens/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      App.toast('Token deleted', 'success');
+      SettingsPanel.loadAbout();
+    } else {
+      const d = await res.json();
+      App.toast(d.error || 'Delete failed', 'error');
     }
   },
 

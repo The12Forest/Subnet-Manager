@@ -80,7 +80,14 @@ router.get('/about', requireAuth, (req, res) => {
     port:     config.PORT,
     mcp_port: config.MCP_PORT,
   };
-  if (req.user.role === 'admin') result.mcp_token = config.MCP_TOKEN || '';
+  if (req.user.role === 'admin') {
+    result.mcp_token   = config.MCP_TOKEN || '';
+    // Include API tokens list (without hashes or raw values)
+    result.api_tokens = db.prepare(`
+      SELECT id, name, prefix, role, created_at, last_used_at, revoked
+      FROM api_tokens ORDER BY created_at DESC
+    `).all();
+  }
   res.json(result);
 });
 

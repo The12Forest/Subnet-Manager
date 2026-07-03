@@ -228,16 +228,26 @@ app.use((req, res, next) => {
 
   const token = auth.slice(7);
 
-  // Accept the static MCP_TOKEN (Claude Desktop / manual curl)
+  // 1. Accept the static MCP_TOKEN (Claude Desktop / manual curl) — legacy
   if (token === config.MCP_TOKEN) return next();
 
-  // Accept JWT access tokens issued by our OAuth server
+  // 2. Accept JWT access tokens issued by our OAuth server
   try {
     jwt.verify(token, config.JWT_SECRET);
     return next();
   } catch {
-    return res.status(401).json({ error: 'Unauthorized — token invalid or expired' });
+    // Not a JWT — fall through
   }
+
+  // 3. Accept API tokens from the database
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const row = db.prepare('SELECT id FROM api_tokens WHERE token_hash = ? AND revoked = 0').get(tokenHash);
+  if (row) {
+    db.prepare("UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?").run(row.id);
+    return next();
+  }
+
+  return res.status(401).json({ error: 'Unauthorized — token invalid or expired' });
 });
 
 // ── MCP session management ───────────────────────────────────────────────────

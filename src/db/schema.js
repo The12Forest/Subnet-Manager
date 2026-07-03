@@ -110,14 +110,6 @@ db.exec(`
   );
 `);
 
-// ── Column migrations (safe on existing DBs) ─────────────────────────────────
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon TEXT"); } catch {}
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN group_id INTEGER REFERENCES compose_groups(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN display_subnet_id INTEGER REFERENCES subnets(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon_url TEXT"); } catch {}
-try { db.exec("ALTER TABLE domain_records ADD COLUMN compose_id INTEGER REFERENCES compose_projects(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
-
 // ── Domain tables ─────────────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS domains (
@@ -142,5 +134,31 @@ db.exec(`
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
+
+// ── API tokens table ──────────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name          TEXT    NOT NULL,
+    prefix        TEXT    NOT NULL,
+    token_hash    TEXT    NOT NULL UNIQUE,
+    role          TEXT    NOT NULL DEFAULT 'viewer'
+                  CHECK(role IN ('admin', 'editor', 'viewer')),
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    last_used_at  TEXT,
+    revoked       INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id);
+  CREATE INDEX IF NOT EXISTS idx_api_tokens_token_hash ON api_tokens(token_hash);
+`);
+
+// ── Column migrations (safe on existing DBs — must run AFTER all CREATE TABLE) ─
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon TEXT"); } catch {}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN group_id INTEGER REFERENCES compose_groups(id) ON DELETE SET NULL"); } catch {}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN display_subnet_id INTEGER REFERENCES subnets(id) ON DELETE SET NULL"); } catch {}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon_url TEXT"); } catch {}
+try { db.exec("ALTER TABLE domain_records ADD COLUMN compose_id INTEGER REFERENCES compose_projects(id) ON DELETE SET NULL"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
 
 module.exports = db;
