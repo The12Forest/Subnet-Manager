@@ -376,3 +376,91 @@ Bulk import subnets and hosts from a JSON export.
 **Response:** `{ "ok": true, "imported": { "subnets": 3, "hosts": 12 } }`
 
 Uses `INSERT OR IGNORE` — existing records (same network+cidr or same IP) are skipped.
+
+---
+
+## API Tokens
+
+Manage API tokens for programmatic access. All endpoints require `admin` role.
+
+Tokens use the format `smt_` + 48 hex characters (52 chars total, 192 bits entropy). Only the SHA-256 hash is stored in the database — the raw token is shown **only once** at creation time.
+
+See [API-TOKENS.md](API-TOKENS.md) for a complete guide with workflow examples.
+
+### GET /api/v1/tokens
+List all API tokens (without the raw token values).
+
+**Auth:** admin
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "CI/CD Pipeline",
+    "prefix": "smt_a1b2c3d4",
+    "role": "admin",
+    "created_at": "2026-07-03 12:00:00",
+    "last_used_at": "2026-07-03 14:30:00",
+    "revoked": 0
+  }
+]
+```
+
+### POST /api/v1/tokens
+Create a new API token. The raw token is returned **only once** — copy it immediately.
+
+**Auth:** admin
+
+**Request:**
+```json
+{ "name": "CI/CD Pipeline" }
+```
+
+**Response (201):**
+```json
+{
+  "id": 1,
+  "name": "CI/CD Pipeline",
+  "prefix": "smt_a1b2c3d4",
+  "role": "admin",
+  "created_at": "2026-07-03 12:00:00",
+  "revoked": 0,
+  "token": "smt_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4"
+}
+```
+
+### POST /api/v1/tokens/:id/roll
+Roll (rotate) a token. Revokes the old token and creates a new one with the same name. Returns the new raw token once.
+
+**Auth:** admin
+
+**Response (201):**
+```json
+{
+  "id": 2,
+  "name": "CI/CD Pipeline",
+  "prefix": "smt_9a8b7c6d",
+  "role": "admin",
+  "created_at": "2026-07-03 12:30:00",
+  "revoked": 0,
+  "token": "smt_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5"
+}
+```
+
+### POST /api/v1/tokens/:id/revoke
+Revoke a token immediately. It stops working from the moment this request completes.
+
+**Auth:** admin
+
+**Response:**
+```json
+{ "id": 1, "name": "CI/CD Pipeline", "prefix": "smt_a1b2c3d4", "revoked": 1, "ok": true }
+```
+
+### DELETE /api/v1/tokens/:id
+Permanently delete a revoked token. Irreversible.
+
+**Auth:** admin
+
+**Response:** `{ "ok": true }`

@@ -97,6 +97,7 @@ Full table in [docs/SETUP.md](docs/SETUP.md#environment-variables).
 |------|----------|
 | [docs/SETUP.md](docs/SETUP.md) | Docker, env vars, HTTPS, GHCR publishing |
 | [docs/API.md](docs/API.md) | All REST endpoints with examples |
+| [docs/API-TOKENS.md](docs/API-TOKENS.md) | API token system — create, roll, revoke, and use programmatic tokens |
 | [docs/MCP.md](docs/MCP.md) | MCP connection guide and tool reference |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local dev, DB reset, adding settings |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Component and module diagram |
