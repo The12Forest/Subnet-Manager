@@ -359,6 +359,58 @@ curl -s -X POST http://localhost:3000/api/v1/subnets/1/hosts \
 # Trigger a status check
 curl -s -X POST http://localhost:3000/api/v1/status/check-all \
   -H "Authorization: Bearer $TOKEN"
+
+# ── Domains ──────────────────────────────────────────────
+# List all domains
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/domains
+
+# Create a domain
+curl -s -X POST http://localhost:3000/api/v1/domains \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"example.com","description":"My public domain"}'
+
+# Get domain with all DNS records
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/domains/1
+
+# Add a DNS record pointing to a host
+curl -s -X POST http://localhost:3000/api/v1/domains/1/records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"subdomain":"api","host_id":5,"notes":"API gateway"}'
+
+# Delete a DNS record
+curl -s -X DELETE http://localhost:3000/api/v1/domains/1/records/2 \
+  -H "Authorization: Bearer $TOKEN"
+
+# ── Compose ──────────────────────────────────────────────
+# List compose projects
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/compose
+
+# Create a compose project
+curl -s -X POST http://localhost:3000/api/v1/compose \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Media Stack","content":"version: \"3\"\nservices:\n  plex:\n    image: plexinc/pms-docker"}'
+
+# Link services to hosts
+curl -s -X PUT http://localhost:3000/api/v1/compose/1/links \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '[{"service_name":"plex","host_id":10}]'
+
+# ── Backups ──────────────────────────────────────────────
+# List backups
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/backup
+
+# Trigger a backup
+curl -s -X POST http://localhost:3000/api/v1/backup \
+  -H "Authorization: Bearer $TOKEN"
+
+# Download a backup
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3000/api/v1/backup/backup-2026-07-03T08-30-00.db \
+  -o restore.db
 ```
 
 **Step 4: Roll the token (rotate)**

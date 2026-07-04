@@ -379,6 +379,331 @@ Uses `INSERT OR IGNORE` — existing records (same network+cidr or same IP) are 
 
 ---
 
+## Domains
+
+Manage DNS domains and their records. Every domain can have multiple records (A, AAAA, CNAME, MX, TXT, NS, SRV, CAA) pointing to hosts or compose projects.
+
+### GET /api/v1/domains
+List all domains with record counts.
+
+**Auth:** viewer
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "example.com",
+    "description": "Public domain",
+    "record_count": 5,
+    "updated_at": "2026-07-03 12:00:00"
+  }
+]
+```
+
+### POST /api/v1/domains
+Create a new domain.
+
+**Auth:** editor
+
+**Request:**
+```json
+{ "name": "example.com", "description": "Public domain" }
+```
+
+**Response (201):** The created domain object. Returns 409 if the domain already exists.
+
+### GET /api/v1/domains/:id
+Get a domain with all its DNS records. Each record includes linked host IP/hostname/status or compose project name.
+
+**Auth:** viewer
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "example.com",
+  "description": "Public domain",
+  "records": [
+    {
+      "id": 1,
+      "subdomain": "@",
+      "host_id": 5,
+      "host_ip": "10.0.0.10",
+      "host_name": "nginx",
+      "last_status": "online",
+      "compose_id": null,
+      "compose_name": null,
+      "notes": "Main web server",
+      "created_at": "2026-07-03 12:00:00"
+    },
+    {
+      "id": 2,
+      "subdomain": "api",
+      "host_id": null,
+      "host_ip": null,
+      "host_name": null,
+      "last_status": null,
+      "compose_id": 3,
+      "compose_name": "API Stack",
+      "notes": null,
+      "created_at": "2026-07-03 12:05:00"
+    }
+  ]
+}
+```
+
+### PUT /api/v1/domains/:id
+Update a domain's name or description.
+
+**Auth:** editor
+
+**Request:** `{ "name": "new-name.com", "description": "Updated description" }`
+
+**Response:** The updated domain object. Returns 409 if the new name is already taken.
+
+### DELETE /api/v1/domains/:id
+Delete a domain and all its DNS records (CASCADE).
+
+**Auth:** editor
+
+**Response:** `{ "ok": true }`
+
+### POST /api/v1/domains/:id/records
+Add a DNS record to a domain. Link it to a host or a compose project (or both).
+
+**Auth:** editor
+
+**Request:**
+```json
+{
+  "subdomain": "api",
+  "host_id": 5,
+  "compose_id": null,
+  "notes": "API gateway"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `subdomain` | string | Default `"@"` (root). e.g. `"www"`, `"api"`, `"*.cdn"` |
+| `host_id` | integer | Link to a host by ID |
+| `compose_id` | integer | Link to a compose project by ID |
+| `notes` | string | Optional notes |
+
+Either `host_id` or `compose_id` (or both) must be provided.
+
+**Response (201):** The created record object with resolved host/compose details.
+
+### PUT /api/v1/domains/:id/records/:recordId
+Update a DNS record.
+
+**Auth:** editor
+
+**Request:** Any subset of `{ subdomain, host_id, compose_id, notes }`
+
+**Response:** The updated record object.
+
+### DELETE /api/v1/domains/:id/records/:recordId
+Delete a DNS record.
+
+**Auth:** editor
+
+**Response:** `{ "ok": true }`
+
+---
+
+## Compose
+
+Manage Docker Compose projects with service-to-host linking, subnet display assignment, and icon management.
+
+### GET /api/v1/compose
+List all compose projects with linked host counts and display subnet info.
+
+**Auth:** viewer
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Media Stack",
+    "description": "Plex + *arr suite",
+    "icon": "/uploads/icons/cmp-1-cached.png",
+    "icon_url": null,
+    "display_subnet_id": 1,
+    "display_subnet_name": "Services",
+    "display_subnet_color": "#3b82f6",
+    "linked_count": 5,
+    "created_at": "2026-07-01 10:00:00",
+    "updated_at": "2026-07-03 14:00:00"
+  }
+]
+```
+
+### POST /api/v1/compose
+Create a new compose project.
+
+**Auth:** editor
+
+**Request:**
+```json
+{
+  "name": "Media Stack",
+  "description": "Plex + *arr suite",
+  "content": "version: '3'\nservices:\n  plex:\n    image: plexinc/pms-docker",
+  "icon_url": "https://example.com/icon.png",
+  "display_subnet_id": 1
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Project name |
+| `content` | string | Yes | Docker Compose YAML content |
+| `description` | string | No | Optional description |
+| `icon_url` | string | No | Remote icon URL (auto-downloaded and cached) |
+| `display_subnet_id` | integer | No | Subnet to display this project under |
+
+**Response (201):** The created project object.
+
+### GET /api/v1/compose/:id
+Get a compose project with full details including service links and host links.
+
+**Auth:** viewer
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "Media Stack",
+  "description": "Plex + *arr suite",
+  "content": "version: '3'\nservices:\n  plex:\n    image: plexinc/pms-docker",
+  "links": [
+    { "service_name": "plex", "host_id": 10, "ip": "10.0.0.10", "host_name": "plex-srv", "last_status": "online" }
+  ],
+  "host_links": [
+    { "host_id": 10, "ip": "10.0.0.10", "host_name": "plex-srv", "last_status": "online", "subnet_name": "Services" }
+  ]
+}
+```
+
+### PUT /api/v1/compose/:id
+Update a compose project.
+
+**Auth:** editor
+
+**Request:** Any subset of `{ name, description, content, icon_url, display_subnet_id }`
+
+**Response:** The updated project object.
+
+### DELETE /api/v1/compose/:id
+Delete a compose project and its link records. Also removes cached icons and uploaded icons from disk.
+
+**Auth:** editor
+
+**Response:** `{ "ok": true }`
+
+### GET /api/v1/compose/:id/icon
+Serve the project's icon image. Falls back to a default icon if none is set.
+
+**Auth:** public (icons are served without auth)
+
+### POST /api/v1/compose/:id/icon
+Upload an icon file directly (binary upload).
+
+**Auth:** editor
+
+**Request:** Raw image bytes (`Content-Type: image/png`, `image/jpeg`, `image/gif`, `image/svg+xml`, `image/webp`). Max 4 MB.
+
+**Response:** `{ "ok": true }`
+
+### DELETE /api/v1/compose/:id/icon
+Remove the project's icon (both cached and uploaded).
+
+**Auth:** editor
+
+**Response:** `{ "ok": true }`
+
+### PUT /api/v1/compose/:id/links
+Replace all service-to-host links for a project (atomic — deletes old links, inserts new ones).
+
+**Auth:** editor
+
+**Request:**
+```json
+[
+  { "service_name": "plex", "host_id": 10 },
+  { "service_name": "radarr", "host_id": 11 },
+  { "service_name": "sonarr", "host_id": null }
+]
+```
+
+**Response:**
+```json
+{ "ok": true, "links": [...] }
+```
+
+### PUT /api/v1/compose/:id/hosts
+Replace all host links (additional hosts without a specific service mapping).
+
+**Auth:** editor
+
+**Request:** `[10, 11, 12]` — array of host IDs
+
+**Response:**
+```json
+{ "ok": true, "host_links": [...] }
+```
+
+---
+
+## Backups
+
+Manage database backups. Requires `admin` role for all endpoints.
+
+### GET /api/v1/backup
+List all backup files.
+
+**Auth:** admin
+
+**Response:**
+```json
+[
+  {
+    "name": "backup-2026-07-03T08-30-00.db",
+    "size": 204800,
+    "created_at": "2026-07-03T08:30:00.000Z"
+  }
+]
+```
+
+### POST /api/v1/backup
+Trigger an immediate backup. Creates a `.db` file in the data directory and prunes old backups according to `backup_max_count`.
+
+**Auth:** admin
+
+**Response:**
+```json
+{ "ok": true, "count": 5, "latest": "backup-2026-07-03T08-30-00.db" }
+```
+
+### GET /api/v1/backup/:name
+Download a specific backup file.
+
+**Auth:** admin
+
+**Response:** The `.db` file as a download attachment.
+
+### DELETE /api/v1/backup/:name
+Delete a specific backup file.
+
+**Auth:** admin
+
+**Response:** `{ "ok": true }`
+
+---
+
 ## API Tokens
 
 Manage API tokens for programmatic access. All endpoints require `admin` role.
