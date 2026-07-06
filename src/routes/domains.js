@@ -104,14 +104,15 @@ router.delete('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) =>
 router.post('/:id/records', requireAuth, requireRole('admin', 'editor'), (req, res) => {
   const domainId = parseInt(req.params.id, 10);
   if (!getDomain.get(domainId)) return res.status(404).json({ error: 'Domain not found' });
-  const { subdomain = '@', record_type, value, host_id, compose_id, notes } = req.body || {};
+  const { subdomain = '@', record_type, type, value, host_id, compose_id, notes } = req.body || {};
+  const recType = record_type || type || 'A';
   if (!host_id && !compose_id && !value) {
     return res.status(400).json({ error: 'One of host_id, compose_id, or value is required' });
   }
   const r = insertRecord.run(
     domainId,
     (subdomain.trim() || '@').toLowerCase(),
-    record_type || 'A',
+    recType,
     value || null,
     host_id || null,
     compose_id || null,
@@ -134,10 +135,11 @@ router.put('/:id/records/:recordId', requireAuth, requireRole('admin', 'editor')
   const recordId = parseInt(req.params.recordId, 10);
   const rec = getRecord.get(recordId);
   if (!rec || rec.domain_id !== parseInt(req.params.id, 10)) return res.status(404).json({ error: 'Record not found' });
-  const { subdomain, record_type, value, host_id, compose_id, notes } = req.body || {};
+  const { subdomain, record_type, type, value, host_id, compose_id, notes } = req.body || {};
+  const recType = record_type || type;
   updateRecord.run(
     subdomain   !== undefined ? ((subdomain.trim() || '@').toLowerCase()) : rec.name,
-    record_type !== undefined ? record_type  : rec.record_type,
+    recType !== undefined ? recType  : rec.record_type,
     value       !== undefined ? (value || null) : rec.value,
     host_id     !== undefined ? (host_id    || null) : rec.host_id,
     compose_id  !== undefined ? (compose_id || null) : rec.compose_id,

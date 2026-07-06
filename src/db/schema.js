@@ -125,7 +125,8 @@ db.exec(`
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     domain_id   INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
     name        TEXT NOT NULL DEFAULT '@',
-    record_type TEXT NOT NULL DEFAULT 'A',
+    record_type TEXT NOT NULL DEFAULT 'A'
+                CHECK(record_type IN ('A','AAAA','CNAME','MX','TXT','NS','SRV','CAA')),
     host_id     INTEGER REFERENCES hosts(id) ON DELETE SET NULL,
     value       TEXT,
     priority    INTEGER,
@@ -153,44 +154,11 @@ db.exec(`
 `);
 
 // ── Column migrations (safe on existing DBs — must run AFTER all CREATE TABLE) ─
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon TEXT"); } catch {}
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN group_id INTEGER REFERENCES compose_groups(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN display_subnet_id INTEGER REFERENCES subnets(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon_url TEXT"); } catch {}
-try { db.exec("ALTER TABLE domain_records ADD COLUMN compose_id INTEGER REFERENCES compose_projects(id) ON DELETE SET NULL"); } catch {}
-try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch {}
-
-// Remove CHECK constraint on record_type (SQLite can't ALTER CHECK, so rebuild)
-// Only runs if the old CHECK still exists (idempotent — safe to run multiple times)
-{
-  const hasCheck = db.prepare(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='domain_records'"
-  ).get();
-  if (hasCheck && hasCheck.sql.includes('CHECK(record_type IN')) {
-    const count = db.prepare('SELECT COUNT(*) AS n FROM domain_records').get();
-    console.log(`[schema] Removing record_type CHECK constraint — ${count.n} records will be preserved`);
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS domain_records_new (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        domain_id   INTEGER NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
-        name        TEXT NOT NULL DEFAULT '@',
-        record_type TEXT NOT NULL DEFAULT 'A',
-        host_id     INTEGER REFERENCES hosts(id) ON DELETE SET NULL,
-        value       TEXT,
-        priority    INTEGER,
-        notes       TEXT,
-        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-        compose_id  INTEGER REFERENCES compose_projects(id) ON DELETE SET NULL
-      );
-      INSERT INTO domain_records_new SELECT
-        id, domain_id, name, record_type, host_id, value, priority, notes, created_at, compose_id
-      FROM domain_records;
-      DROP TABLE domain_records;
-      ALTER TABLE domain_records_new RENAME TO domain_records;
-    `);
-    const newCount = db.prepare('SELECT COUNT(*) AS n FROM domain_records').get();
-    console.log(`[schema] CHECK removed — ${newCount.n} records preserved`);
-  }
-}
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon TEXT"); } catch { }
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN group_id INTEGER REFERENCES compose_groups(id) ON DELETE SET NULL"); } catch { }
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN display_subnet_id INTEGER REFERENCES subnets(id) ON DELETE SET NULL"); } catch { }
+try { db.exec("ALTER TABLE compose_projects ADD COLUMN icon_url TEXT"); } catch { }
+try { db.exec("ALTER TABLE domain_records ADD COLUMN compose_id INTEGER REFERENCES compose_projects(id) ON DELETE SET NULL"); } catch { }
+try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch { }
 
 module.exports = db;
