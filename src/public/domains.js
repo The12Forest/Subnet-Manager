@@ -86,21 +86,24 @@ const DomainsPage = {
     const rows = records.map(r => {
       const fqdn   = r.subdomain === '@' ? domainName : `${r.subdomain}.${domainName}`;
       const status = r.last_status || null;
-      let target, targetBadge;
+      let target, typeBadge;
       if (r.host_id) {
-        target      = `${r.host_ip}${r.host_name ? ' — ' + r.host_name : ''}`;
-        targetBadge = `<span class="host-type-badge">host</span>`;
+        target    = `${r.host_ip}${r.host_name ? ' — ' + r.host_name : ''}`;
+        typeBadge = `<span class="host-type-badge">${r.record_type || 'A'}</span>`;
       } else if (r.compose_id) {
-        target      = r.compose_name || `compose #${r.compose_id}`;
-        targetBadge = `<span class="host-type-badge">compose</span>`;
+        target    = r.compose_name || `compose #${r.compose_id}`;
+        typeBadge = `<span class="host-type-badge">${r.record_type || 'A'}</span>`;
+      } else if (r.value) {
+        target    = r.value;
+        typeBadge = `<span class="host-type-badge">${r.record_type || 'A'}</span>`;
       } else {
-        target      = '—';
-        targetBadge = '';
+        target    = '—';
+        typeBadge = '';
       }
       return `
         <tr>
           <td class="mono" style="font-size:12px">${App.esc(fqdn)}</td>
-          <td>${targetBadge}</td>
+          <td>${typeBadge}</td>
           <td style="font-size:12px;color:var(--text2)">${App.esc(target)}</td>
           <td>${status ? `<span class="status-dot ${status}"></span>` : '<span style="color:var(--muted);font-size:11px">—</span>'}</td>
           <td style="white-space:nowrap">
@@ -168,6 +171,9 @@ const DomainsPage = {
   _recordFormHtml(domainName, rec) {
     const sub  = rec ? rec.subdomain : '';
     const note = rec ? (rec.notes || '') : '';
+    const type = rec ? (rec.record_type || 'A') : 'A';
+    const val  = rec ? (rec.value || '') : '';
+    const TYPES = ['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA'];
     return `
       <div class="form-group">
         <label>Subdomain *</label>
@@ -178,13 +184,24 @@ const DomainsPage = {
         <span class="hint">Use @ for the root domain itself</span>
       </div>
       <div class="form-group">
-        <label>Link to Host (IP address)</label>
+        <label>Record Type</label>
+        <select id="m-rec-type">
+          ${TYPES.map(t => `<option value="${t}" ${t === type ? 'selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Value / Target <span class="muted">(free-text)</span></label>
+        <input type="text" id="m-rec-value" value="${App.esc(val)}" placeholder="e.g. 192.168.1.146  or  http://192.168.1.146:8080  or  target.example.com" class="mono">
+        <span class="hint">Any string — IP, URL, hostname. Leave empty if linking to a host below.</span>
+      </div>
+      <div class="form-group">
+        <label>— or — Link to Host (IP address)</label>
         ${DomainsPage._hostPickerHtml(rec?.host_id)}
       </div>
       <div class="form-group">
         <label>— or — Link to Compose Project</label>
         ${DomainsPage._composePickerHtml(rec?.compose_id)}
-        <span class="hint">Select either a host OR a compose project (not both)</span>
+        <span class="hint">Fill in one of: Value, Host, or Compose project</span>
       </div>
       <div class="form-group">
         <label>Notes <span class="muted">(optional)</span></label>
@@ -308,6 +325,8 @@ const DomainsPage = {
 
   async saveRecord(domainId, recordId) {
     const sub       = document.getElementById('m-rec-sub')?.value.trim() || '@';
+    const recType   = document.getElementById('m-rec-type')?.value || 'A';
+    const value     = document.getElementById('m-rec-value')?.value.trim() || null;
     const hostEl    = document.getElementById('m-rec-host');
     const composeEl = document.getElementById('m-rec-compose');
     const notes     = document.getElementById('m-rec-notes')?.value.trim();
@@ -316,13 +335,8 @@ const DomainsPage = {
     const host_id    = hostEl?.value    ? parseInt(hostEl.value, 10)    : null;
     const compose_id = composeEl?.value ? parseInt(composeEl.value, 10) : null;
 
-    if (!host_id && !compose_id) {
-      errEl.textContent = 'Select either a host IP or a compose project';
-      errEl.classList.remove('hidden');
-      return;
-    }
-    if (host_id && compose_id) {
-      errEl.textContent = 'Select only one: host IP or compose project';
+    if (!host_id && !compose_id && !value) {
+      errEl.textContent = 'Fill in a Value, select a host, or select a compose project';
       errEl.classList.remove('hidden');
       return;
     }
@@ -331,7 +345,7 @@ const DomainsPage = {
     const method = recordId ? 'PUT' : 'POST';
     const res = await fetch(url, {
       method, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subdomain: sub, host_id, compose_id, notes: notes || null }),
+      body: JSON.stringify({ subdomain: sub, record_type: recType, value, host_id, compose_id, notes: notes || null }),
     });
     if (!res.ok) { const d = await res.json(); errEl.textContent = d.error || 'Failed'; errEl.classList.remove('hidden'); return; }
     App.closeModal();

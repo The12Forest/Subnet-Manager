@@ -29,7 +29,8 @@ const deleteDomain = db.prepare('DELETE FROM domains WHERE id = ?');
 
 // ── Record statements ─────────────────────────────────────────────────────────
 const getRecords = db.prepare(`
-  SELECT dr.id, dr.domain_id, dr.name AS subdomain, dr.host_id, dr.compose_id, dr.notes, dr.created_at,
+  SELECT dr.id, dr.domain_id, dr.name AS subdomain, dr.record_type, dr.value,
+         dr.host_id, dr.compose_id, dr.notes, dr.created_at,
          h.ip AS host_ip, h.name AS host_name, h.last_status,
          cp.name AS compose_name
   FROM domain_records dr
@@ -40,11 +41,13 @@ const getRecords = db.prepare(`
 `);
 const getRecord    = db.prepare('SELECT * FROM domain_records WHERE id = ?');
 const insertRecord = db.prepare(`
-  INSERT INTO domain_records (domain_id, name, record_type, host_id, compose_id, notes, created_at)
-  VALUES (?, ?, 'A', ?, ?, ?, datetime('now'))
+  INSERT INTO domain_records (domain_id, name, record_type, value, host_id, compose_id, notes, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
 `);
 const updateRecord = db.prepare(`
-  UPDATE domain_records SET name=?, host_id=?, compose_id=?, notes=? WHERE id=?
+  UPDATE domain_records
+  SET name=?, record_type=?, value=?, host_id=?, compose_id=?, notes=?
+  WHERE id=?
 `);
 const deleteRecord = db.prepare('DELETE FROM domain_records WHERE id = ?');
 
@@ -101,11 +104,22 @@ router.delete('/:id', requireAuth, requireRole('admin', 'editor'), (req, res) =>
 router.post('/:id/records', requireAuth, requireRole('admin', 'editor'), (req, res) => {
   const domainId = parseInt(req.params.id, 10);
   if (!getDomain.get(domainId)) return res.status(404).json({ error: 'Domain not found' });
-  const { subdomain = '@', host_id, compose_id, notes } = req.body || {};
-  if (!host_id && !compose_id) return res.status(400).json({ error: 'Either host_id or compose_id is required' });
-  const r   = insertRecord.run(domainId, (subdomain.trim() || '@').toLowerCase(), host_id || null, compose_id || null, notes || null);
+  const { subdomain = '@', record_type, value, host_id, compose_id, notes } = req.body || {};
+  if (!host_id && !compose_id && !value) {
+    return res.status(400).json({ error: 'One of host_id, compose_id, or value is required' });
+  }
+  const r = insertRecord.run(
+    domainId,
+    (subdomain.trim() || '@').toLowerCase(),
+    record_type || 'A',
+    value || null,
+    host_id || null,
+    compose_id || null,
+    notes || null
+  );
   const rec = db.prepare(`
-    SELECT dr.id, dr.name AS subdomain, dr.host_id, dr.compose_id, dr.notes,
+    SELECT dr.id, dr.name AS subdomain, dr.record_type, dr.value,
+           dr.host_id, dr.compose_id, dr.notes,
            h.ip AS host_ip, h.name AS host_name, h.last_status,
            cp.name AS compose_name
     FROM domain_records dr
@@ -120,12 +134,14 @@ router.put('/:id/records/:recordId', requireAuth, requireRole('admin', 'editor')
   const recordId = parseInt(req.params.recordId, 10);
   const rec = getRecord.get(recordId);
   if (!rec || rec.domain_id !== parseInt(req.params.id, 10)) return res.status(404).json({ error: 'Record not found' });
-  const { subdomain, host_id, compose_id, notes } = req.body || {};
+  const { subdomain, record_type, value, host_id, compose_id, notes } = req.body || {};
   updateRecord.run(
-    subdomain !== undefined ? ((subdomain.trim() || '@').toLowerCase()) : rec.name,
-    host_id    !== undefined ? (host_id    || null) : rec.host_id,
-    compose_id !== undefined ? (compose_id || null) : rec.compose_id,
-    notes      !== undefined ? (notes      || null) : rec.notes,
+    subdomain   !== undefined ? ((subdomain.trim() || '@').toLowerCase()) : rec.name,
+    record_type !== undefined ? record_type  : rec.record_type,
+    value       !== undefined ? (value || null) : rec.value,
+    host_id     !== undefined ? (host_id    || null) : rec.host_id,
+    compose_id  !== undefined ? (compose_id || null) : rec.compose_id,
+    notes       !== undefined ? (notes      || null) : rec.notes,
     recordId
   );
   res.json(getRecord.get(recordId));
