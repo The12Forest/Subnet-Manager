@@ -470,37 +470,82 @@ Delete a domain and all its DNS records (CASCADE).
 **Response:** `{ "ok": true }`
 
 ### POST /api/v1/domains/:id/records
-Add a DNS record to a domain. Link it to a host or a compose project (or both).
+Add a DNS record to a domain. You can either set a free-text `value` **or** link to a host/compose project. You can also combine them (value + link).
 
 **Auth:** editor
 
 **Request:**
 ```json
 {
-  "subdomain": "api",
-  "host_id": 5,
+  "subdomain": "cloud",
+  "record_type": "A",
+  "value": "192.168.1.146",
+  "host_id": null,
   "compose_id": null,
-  "notes": "API gateway"
+  "notes": "Connector: Benjamin"
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `subdomain` | string | Default `"@"` (root). e.g. `"www"`, `"api"`, `"*.cdn"` |
-| `host_id` | integer | Link to a host by ID |
-| `compose_id` | integer | Link to a compose project by ID |
-| `notes` | string | Optional notes |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `subdomain` | string | No | Default `"@"` (root). e.g. `"www"`, `"api"`, `"*.cdn"` |
+| `record_type` | string | No | Default `"A"`. One of: `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `NS`, `SRV`, `CAA` |
+| `value` | string | No | Arbitrary value — IP, URL, hostname, or any string. Stored as-is. |
+| `host_id` | integer | No | Link to a host by its database ID |
+| `compose_id` | integer | No | Link to a compose project by its database ID |
+| `notes` | string | No | Optional notes |
 
-Either `host_id` or `compose_id` (or both) must be provided.
+At least **one** of `value`, `host_id`, or `compose_id` must be provided.
 
-**Response (201):** The created record object with resolved host/compose details.
+**Examples:**
+
+Free-text value (no host link):
+```json
+{ "subdomain": "cloud", "value": "http://192.168.1.146:8080", "notes": "Nextcloud instance" }
+```
+
+CNAME record:
+```json
+{ "subdomain": "www", "record_type": "CNAME", "value": "example.com" }
+```
+
+MX record with priority in value:
+```json
+{ "subdomain": "@", "record_type": "MX", "value": "10 mail.example.com" }
+```
+
+Link to host by ID:
+```json
+{ "subdomain": "api", "host_id": 5 }
+```
+
+**Response (201):** The created record object with resolved host/compose details:
+```json
+{
+  "id": 12,
+  "subdomain": "cloud",
+  "record_type": "A",
+  "value": "http://192.168.1.146",
+  "host_id": null,
+  "host_ip": null,
+  "host_name": null,
+  "last_status": null,
+  "compose_id": null,
+  "compose_name": null,
+  "notes": "Connector: Benjamin"
+}
+```
 
 ### PUT /api/v1/domains/:id/records/:recordId
 Update a DNS record.
 
 **Auth:** editor
 
-**Request:** Any subset of `{ subdomain, host_id, compose_id, notes }`
+**Request:** Any subset of `{ subdomain, record_type, value, host_id, compose_id, notes }`
+
+```json
+{ "value": "192.168.1.200", "notes": "Updated target" }
+```
 
 **Response:** The updated record object.
 
